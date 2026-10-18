@@ -1,0 +1,30 @@
+[package]
+name = "rectangle-rs"
+description = "Cross-platform window snapping for Windows and macOS, written in Rust with a GPUI settings window"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+default-run = "rectangle-rs"
+
+[[bin]]
+name = "rectangle-rs"
+path = "src/main.rs"
+
+[dependencies]
+rectangle-core.workspace = true
+rectangle-platform.workspace = true
+
+async-channel = "2"
+gpui = "0.2.2"
+global-hotkey = "0.9"
+log = "0.4"
+tray-icon = "0.26"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Registry",
+    "Win32_UI_WindowsAndMessaging",
+] }

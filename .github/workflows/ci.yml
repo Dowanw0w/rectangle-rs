@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Pure-logic crates: they build and test on every platform, so the cheap
+  # Linux runner covers geometry/tiling/hotkey/config/engine plus formatting.
+  logic:
+    name: logic (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Test
+        run: cargo test -p rectangle-core -p rectangle-platform --all-targets
+      - name: Clippy
+        run: cargo clippy -p rectangle-core -p rectangle-platform --all-targets -- -D warnings
+
+  # Cross type-check the platform backends from the Linux runner: the backends
+  # carry no C dependencies, so both targets can be verified without the target OS.
+  backends:
+    name: backends (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-pc-windows-gnu
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: clippy
+      - name: Clippy
+        run: cargo clippy -p rectangle-platform --target ${{ matrix.target }} -- -D warnings
+
+  windows:
+    name: build (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Clippy
+        run: cargo clippy -p rectangle-rs --all-targets -- -D warnings
+      - name: Build
+        run: cargo build -p rectangle-rs --release
+      - name: Test (workspace, includes icon/log unit tests)
+        run: cargo test --workspace
+
+  macos:
+    name: build (macos)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Clippy
+        run: cargo clippy -p rectangle-rs --all-targets -- -D warnings
+      - name: Build
+        run: cargo build -p rectangle-rs --release
+      - name: Bundle .app
+        run: |
+          chmod +x scripts/bundle-macos.sh
+          ./scripts/bundle-macos.sh
+      - name: Test (workspace, includes icon/log unit tests)
+        run: cargo test --workspace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rectangle-rs-macos-app
+          path: target/rectangle-rs.app
+          if-no-files-found: error
